@@ -9,7 +9,7 @@
 # - Readability metrics (FK Grade, FK Ease, SMOG, avg sentence length)
 #   Uses legal-aware NLTK Punkt tokenizer (~70 abbreviations: v., No., para., s., etc.)
 #   and regex-based citation stripping before metrics calculation.
-# - Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, HK, MY, OTHER)
+# - Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, OTHER)
 # - Academic references count (journals, books, named treatises)
 #
 # Usage:
@@ -25,7 +25,7 @@ Analyzes cleaned legal documents and generates Excel/CSV with:
 - Readability metrics (FK Grade, FK Ease, SMOG, avg sentence length)
   Uses legal-aware NLTK Punkt tokenizer (~70 abbreviations: v., No., para., s., etc.)
   and regex-based citation stripping before metrics calculation.
-- Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, HK, MY, OTHER)
+- Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, OTHER)
 - Academic references count (journals, books)
 
 Usage:
@@ -780,9 +780,7 @@ def analyze_file(filepath: str, court: str, country: str) -> Optional[Dict]:
         'Citations_IND': citation_counts['IND'],
         'Citations_NZ': citation_counts['NZ'],
         'Citations_EU': citation_counts['EU'],
-        'Citations_HK': citation_counts['HK'],
-        'Citations_MY': citation_counts['MY'],
-        'Citations_Other': citation_counts['OTHER'],
+        'Citations_Other': citation_counts['OTHER'] + citation_counts['HK'] + citation_counts['MY'],
         'Academic_References': academic_refs,
         'Filename': filename,
     }
@@ -872,22 +870,20 @@ def analyze_folder(input_folders, court: str, country: str,
 
     ws.row_dimensions[1].height = 30
 
-    # Column groups: A-F metadata, G-L metrics, M-Z citations/academic, AA filename
-    metadata_cols = set('ABCDEF')
-    metrics_cols = set('GHIJKL')
-    citation_cols = set(list('MNOPQRSTUVWXYZ'))
-    center_cols = set(list('DEFGHIJKLMNOPQRSTUVWXYZ'))
+    # Column groups: A-F metadata, G-L metrics, M-X citations/academic, Y filename
+    metadata_cols = 'ABCDEF'
+    metrics_cols = 'GHIJKL'
+    citation_cols = 'MNOPQRSTUVWX'
 
     for cell in ws[1]:
         cell.font = header_font
         cell.alignment = header_alignment
         cell.border = thin_border
-        col = cell.column_letter
-        if col in metadata_cols or col == 'AA':
+        if cell.column_letter in metadata_cols or cell.column_letter == 'Y':
             cell.fill = dark_grey_fill
-        elif col in metrics_cols:
+        elif cell.column_letter in metrics_cols:
             cell.fill = blue_fill
-        elif col in citation_cols:
+        elif cell.column_letter in citation_cols:
             cell.fill = green_fill
         else:
             cell.fill = dark_grey_fill
@@ -896,8 +892,7 @@ def analyze_folder(input_folders, court: str, country: str,
         'A': 40, 'B': 18, 'C': 14, 'D': 8, 'E': 8, 'F': 8,
         'G': 12, 'H': 12, 'I': 12, 'J': 12, 'K': 8, 'L': 12,
         'M': 12, 'N': 12, 'O': 10, 'P': 10, 'Q': 10, 'R': 10,
-        'S': 10, 'T': 10, 'U': 10, 'V': 12, 'W': 10, 'X': 10,
-        'Y': 12, 'Z': 14, 'AA': 50,
+        'S': 10, 'T': 10, 'U': 10, 'V': 12, 'W': 14, 'X': 14, 'Y': 50,
     }
     for col, width in column_widths.items():
         ws.column_dimensions[col].width = width
@@ -905,8 +900,7 @@ def analyze_folder(input_folders, court: str, country: str,
     for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
         for cell in row:
             cell.border = thin_border
-            col = cell.column_letter
-            if col in center_cols:
+            if cell.column_letter in 'DEFGHIJKLMNOPQRSTUVWX':
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
     wb.save(output_xlsx)
