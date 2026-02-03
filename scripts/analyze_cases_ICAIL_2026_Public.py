@@ -9,7 +9,7 @@
 # - Readability metrics (FK Grade, FK Ease, SMOG, avg sentence length)
 #   Uses legal-aware NLTK Punkt tokenizer (~70 abbreviations: v., No., para., s., etc.)
 #   and regex-based citation stripping before metrics calculation.
-# - Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, OTHER)
+# - Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, HK, MY, OTHER)
 # - Academic references count (journals, books, named treatises)
 #
 # Usage:
@@ -25,7 +25,7 @@ Analyzes cleaned legal documents and generates Excel/CSV with:
 - Readability metrics (FK Grade, FK Ease, SMOG, avg sentence length)
   Uses legal-aware NLTK Punkt tokenizer (~70 abbreviations: v., No., para., s., etc.)
   and regex-based citation stripping before metrics calculation.
-- Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, OTHER)
+- Citation counts by jurisdiction (SG, UK, AU, USA, CAN, IND, NZ, EU, HK, MY, OTHER)
 - Academic references count (journals, books)
 
 Usage:
@@ -317,14 +317,25 @@ CASE_CITATION_PATTERN = re.compile(
 UK_REPORTERS = {
     'UKHL', 'UKSC', 'UKPC', 'AC', 'WLR', 'QB', 'KB', 'Ch', 'Fam',
     'EWCA', 'EWHC', 'All ER', 'Lloyd', 'ICR', 'IRLR', 'Cr App R',
-    'BCLC', 'BCC', 'FSR', 'RPC', 'STC', 'TC', 'WTLR'
+    'BCLC', 'BCC', 'FSR', 'RPC', 'STC', 'TC', 'WTLR',
+    # Additional UK reporters
+    'EngR', 'Crim LR', 'NI', 'CSIH', 'CSOH', 'UKUT', 'UKEAT',
+    'EMLR', 'EGLR', 'HLC', 'BLR', 'INLR', 'LGR', 'LT', 'HLR',
+    'RTR', 'Env LR', 'Cox CC', 'JP', 'COD', 'EG',
+    'P & CR', 'BPIR', 'Cr App R (S)',
+    # Historical UK reporters
+    'M & W', 'Ves Jun', 'Burr', 'CB (NS)', 'B & C', 'B & S',
+    'App Cas', 'Cl & Fin', 'HL Cas',
 }
 
 AU_REPORTERS = {
     'HCA', 'FCAFC', 'FCA', 'NSWCA', 'NSWSC', 'VSC', 'VSCA', 'QCA', 'QSC',
     'WASCA', 'WASC', 'SASC', 'SASFC', 'TASSC', 'TASFC', 'ACTSC', 'ACTCA',
     'CLR', 'ALR', 'ALJR', 'FLR', 'NSWLR', 'VR', 'SASR', 'WAR', 'Qd R',
-    'Tas R', 'ACTR', 'NTLR'
+    'Tas R', 'ACTR', 'NTLR',
+    # Additional AU reporters
+    'VLR', 'St R Qd', 'QDC', 'NTSC', 'LSJS', 'NRSC', 'QR',
+    'WADC', 'SR (WA)', 'NSWDC',
 }
 
 USA_REPORTERS = {
@@ -348,43 +359,72 @@ NZ_REPORTERS = {
 }
 
 SG_REPORTERS = {
-    'SGCA', 'SGHC', 'SGHCF', 'SGDC', 'SGMC', 'SLR', 'MLJ', 'SGHCR'
+    'SGCA', 'SGHC', 'SGHCF', 'SGDC', 'SGMC', 'SLR', 'SGHCR',
+    'SGDT',
 }
 
 EU_REPORTERS = {
-    'ECR', 'CMLR', 'EUECJ', 'ECHR'
+    'ECR', 'CMLR', 'EUECJ', 'ECHR',
+    # Additional EU/ECHR reporters
+    'EHRR', 'EHRR CD', 'DR', 'ETMR', 'BHRC',
+}
+
+HK_REPORTERS = {
+    'HKCFA', 'HKCA', 'HKCFI', 'HKC', 'HKLRD', 'HKCU', 'HKLR',
+}
+
+MY_REPORTERS = {
+    'MLJ', 'MLJU', 'MLRA', 'MYCA', 'MYHC', 'MYFC', 'CLJ',
+}
+
+# Academic journal abbreviations that look like law report citations
+# but should NOT be counted as legal case citations
+ACADEMIC_JOURNALS = {
+    'LQR', 'LMCLQ', 'SJLS', 'OJLS', 'CLP', 'JBL', 'ICLQ',
+    'AJCL', 'SAcLJ',
 }
 
 
 def classify_reporter(reporter: str) -> Optional[str]:
     """Classify a reporter code to its jurisdiction."""
     reporter_clean = reporter.strip().upper()
+    # Normalise period-separated forms: W.L.R. -> WLR, Q.B. -> QB
+    reporter_nodots = reporter_clean.replace('.', '').replace(' ', '')
 
-    # Check each jurisdiction (order: SG first to prioritise local reporters)
-    for rep in SG_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'SG'
-    for rep in UK_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'UK'
-    for rep in AU_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'AU'
-    for rep in USA_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'USA'
-    for rep in CAN_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'CAN'
-    for rep in IND_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'IND'
-    for rep in NZ_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'NZ'
-    for rep in EU_REPORTERS:
-        if rep.upper() in reporter_clean or reporter_clean in rep.upper():
-            return 'EU'
+    # Exclude academic journal abbreviations (these are not case citations)
+    for aj in ACADEMIC_JOURNALS:
+        aj_up = aj.upper()
+        if aj_up == reporter_clean or aj_up == reporter_nodots:
+            return None
+
+    def _match(reporters_set, rc, rnd):
+        for rep in reporters_set:
+            ru = rep.upper()
+            if ru in rc or rc in ru or ru in rnd or rnd in ru:
+                return True
+        return False
+
+    # Check each jurisdiction (HK/MY before SG to avoid MLJ substring collision)
+    if _match(HK_REPORTERS, reporter_clean, reporter_nodots):
+        return 'HK'
+    if _match(MY_REPORTERS, reporter_clean, reporter_nodots):
+        return 'MY'
+    if _match(SG_REPORTERS, reporter_clean, reporter_nodots):
+        return 'SG'
+    if _match(UK_REPORTERS, reporter_clean, reporter_nodots):
+        return 'UK'
+    if _match(AU_REPORTERS, reporter_clean, reporter_nodots):
+        return 'AU'
+    if _match(USA_REPORTERS, reporter_clean, reporter_nodots):
+        return 'USA'
+    if _match(CAN_REPORTERS, reporter_clean, reporter_nodots):
+        return 'CAN'
+    if _match(IND_REPORTERS, reporter_clean, reporter_nodots):
+        return 'IND'
+    if _match(NZ_REPORTERS, reporter_clean, reporter_nodots):
+        return 'NZ'
+    if _match(EU_REPORTERS, reporter_clean, reporter_nodots):
+        return 'EU'
 
     return 'OTHER'
 
@@ -393,11 +433,11 @@ def count_citations_by_jurisdiction(text: str) -> Dict[str, int]:
     """Count case citations by jurisdiction (total and unique)."""
     counts = {
         'UK': 0, 'AU': 0, 'USA': 0, 'CAN': 0, 'IND': 0,
-        'NZ': 0, 'SG': 0, 'EU': 0, 'OTHER': 0, 'total': 0
+        'NZ': 0, 'SG': 0, 'EU': 0, 'HK': 0, 'MY': 0, 'OTHER': 0, 'total': 0
     }
     unique_counts = {
         'UK': 0, 'AU': 0, 'USA': 0, 'CAN': 0, 'IND': 0,
-        'NZ': 0, 'SG': 0, 'EU': 0, 'OTHER': 0, 'total': 0
+        'NZ': 0, 'SG': 0, 'EU': 0, 'HK': 0, 'MY': 0, 'OTHER': 0, 'total': 0
     }
     seen = set()
 
@@ -740,6 +780,8 @@ def analyze_file(filepath: str, court: str, country: str) -> Optional[Dict]:
         'Citations_IND': citation_counts['IND'],
         'Citations_NZ': citation_counts['NZ'],
         'Citations_EU': citation_counts['EU'],
+        'Citations_HK': citation_counts['HK'],
+        'Citations_MY': citation_counts['MY'],
         'Citations_Other': citation_counts['OTHER'],
         'Academic_References': academic_refs,
         'Filename': filename,
@@ -769,7 +811,7 @@ def analyze_folder(input_folders, court: str, country: str,
     """Analyze all files in folder(s) and export formatted Excel."""
     print("=" * 60)
     print(f"ANALYSIS: {court}")
-    print(f"  Readability engine: Legal-aware Punkt tokenizer + spaCy citation stripping")
+    print(f"  Readability engine: Legal-aware Punkt tokenizer + regex citation stripping")
     print("=" * 60)
     if isinstance(input_folders, str):
         print(f"Input: {input_folders}")
@@ -830,20 +872,22 @@ def analyze_folder(input_folders, court: str, country: str,
 
     ws.row_dimensions[1].height = 30
 
-    # Column groups: A-F metadata, G-L metrics, M-X citations/academic, Y filename
-    metadata_cols = 'ABCDEF'
-    metrics_cols = 'GHIJKL'
-    citation_cols = 'MNOPQRSTUVWX'
+    # Column groups: A-F metadata, G-L metrics, M-Z citations/academic, AA filename
+    metadata_cols = set('ABCDEF')
+    metrics_cols = set('GHIJKL')
+    citation_cols = set(list('MNOPQRSTUVWXYZ'))
+    center_cols = set(list('DEFGHIJKLMNOPQRSTUVWXYZ'))
 
     for cell in ws[1]:
         cell.font = header_font
         cell.alignment = header_alignment
         cell.border = thin_border
-        if cell.column_letter in metadata_cols or cell.column_letter == 'Y':
+        col = cell.column_letter
+        if col in metadata_cols or col == 'AA':
             cell.fill = dark_grey_fill
-        elif cell.column_letter in metrics_cols:
+        elif col in metrics_cols:
             cell.fill = blue_fill
-        elif cell.column_letter in citation_cols:
+        elif col in citation_cols:
             cell.fill = green_fill
         else:
             cell.fill = dark_grey_fill
@@ -852,7 +896,8 @@ def analyze_folder(input_folders, court: str, country: str,
         'A': 40, 'B': 18, 'C': 14, 'D': 8, 'E': 8, 'F': 8,
         'G': 12, 'H': 12, 'I': 12, 'J': 12, 'K': 8, 'L': 12,
         'M': 12, 'N': 12, 'O': 10, 'P': 10, 'Q': 10, 'R': 10,
-        'S': 10, 'T': 10, 'U': 10, 'V': 12, 'W': 14, 'X': 14, 'Y': 50,
+        'S': 10, 'T': 10, 'U': 10, 'V': 12, 'W': 10, 'X': 10,
+        'Y': 12, 'Z': 14, 'AA': 50,
     }
     for col, width in column_widths.items():
         ws.column_dimensions[col].width = width
@@ -860,7 +905,8 @@ def analyze_folder(input_folders, court: str, country: str,
     for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
         for cell in row:
             cell.border = thin_border
-            if cell.column_letter in 'DEFGHIJKLMNOPQRSTUVWX':
+            col = cell.column_letter
+            if col in center_cols:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
     wb.save(output_xlsx)
