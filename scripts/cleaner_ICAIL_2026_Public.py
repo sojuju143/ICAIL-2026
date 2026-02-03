@@ -3085,9 +3085,6 @@ def remove_uk_source_boilerplate(text: str) -> str:
     text = re.sub(r"Judgments\s*-\s*", "", text)
     text = re.sub(r"[A-Z]+_CASE_\w+", "", text)
     text = re.sub(r"^House of Lords Decisions\s*\n", "", text, flags=re.MULTILINE | re.IGNORECASE)
-    text = re.sub(r"\[Buy ICLR report:.*?\]", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\[Printable PDF version\]", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\[Help\]", "", text, flags=re.IGNORECASE)
     return text
 
 
