@@ -1772,13 +1772,8 @@ def remove_source_database_boilerplate(content: str) -> str:
     """
     Remove source database navigation boilerplate from SGDC/SGMC files.
 
-    This removes the header garbage like:
-    - "Home | Databases | WorldLII | Search | Feedback"
-    - "District Court of Singapore"
-    - "You are here: [database] >> Databases >> ..."
-    - "Database Search | Name Search | Recent Decisions | Noteup | LawCite | Help"
-
-    The boilerplate appears after the case title line and before the actual metadata.
+    This removes navigation header boilerplate that appears between the case
+    title and the actual metadata (Case Number, Suit No, Decision Date, etc.).
     """
     # Pattern to match the source database boilerplate block
     # It starts with case title repeated and ends before Case Number/Suit No
@@ -1819,14 +1814,11 @@ def remove_source_database_boilerplate(content: str) -> str:
 
     # Check if it contains source database markers
     source_db_markers = [
-        # Source database identifiers removed for public release
         'Databases',
         'You are here:',
         'Database Search',
         'Name Search',
         'Recent Decisions',
-        'Noteup',
-        'LawCite',
         'District Court of Singapore',
         'Magistrate',
     ]
@@ -3077,22 +3069,16 @@ def fix_split_lord_names(text: str) -> str:
 def remove_uk_source_boilerplate(text: str) -> str:
     """Remove UK source database boilerplate and navigation."""
     text = re.sub(r"(?:You are here:.*?(?=\n\n|\Z))", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"(?:\[Home\].*?(?=\n\n|\Z))", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"(?:Home\s*Databases\s*World Law.*?(?=\n\n|\Z))", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"(?:\[New search\].*?(?=\n\n|\Z))", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"(?:Cite as:.*?(?=\n\n|\Z))", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"(?:URL:.*?(?=\n\n|\Z))", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"Judgments\s*-\s*", "", text)
-    text = re.sub(r"[A-Z]+_CASE_\w+", "", text)
     text = re.sub(r"^House of Lords Decisions\s*\n", "", text, flags=re.MULTILINE | re.IGNORECASE)
     return text
 
 
 def remove_uk_source_footer(text: str) -> str:
     """Remove UK source database footer and copyright notices."""
-    text = re.sub(r"\s*[A-Z]+:\s*Copyright Policy.*$", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"\s*Copyright Policy\s*\|.*$", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"\s*Donate to [A-Z]+.*$", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"\s*&copy;?\s*\d{4}\s*Crown Copyright\.?\s*$", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*©\s*\d{4}\s*Crown Copyright\.?\s*$", "", text, flags=re.IGNORECASE)
     return text.strip()
@@ -3361,8 +3347,8 @@ def is_source_boilerplate_element(element) -> bool:
     if isinstance(element, Tag):
         text = element.get_text().strip().lower()
         boilerplate_patterns = [
-            'home', 'databases', 'world law',
-            'new search', 'printable', 'help', 'feedback',
+            'home', 'databases',
+            'printable', 'help', 'feedback',
             'you are here', 'cite as:', 'url:',
         ]
         for pattern in boilerplate_patterns:
